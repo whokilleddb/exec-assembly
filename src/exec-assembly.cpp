@@ -81,8 +81,9 @@ unsigned char* read_file(char* file_name) {
 }
 
 // Function to run assembly
-extern "C" int run_assembly(unsigned char* f_bytes, size_t f_size) {
+extern "C" int run_assembly(unsigned char* f_bytes, size_t f_size, wchar_t * argv[], int count) {
     int _res = 0;
+    VARIANT obj, retval, args;
     HRESULT hr;
     ICLRMetaHost* metahost = NULL;
     IEnumUnknown* runtime = NULL;
@@ -93,10 +94,43 @@ extern "C" int run_assembly(unsigned char* f_bytes, size_t f_size) {
     LPWSTR frameworkName = NULL;
     DWORD bytes = 2048, result = 0;
     SAFEARRAY* b_payload = NULL;
+    ULONG entryPoint = 1;
+    long idx[1];
     SAFEARRAYBOUND bnd_payload;
     mscorlib::_AppDomainPtr appDomain = nullptr;
     mscorlib::_AssemblyPtr  dotnetAssembly = nullptr;
     mscorlib::_MethodInfoPtr methodInfo = nullptr;
+
+
+    // Initialize variants
+    ZeroMemory(&obj, sizeof(VARIANT));
+    ZeroMemory(&retval, sizeof(VARIANT));
+    ZeroMemory(&args, sizeof(VARIANT));
+    obj.vt = VT_NULL;
+
+    // Set command line arguments
+    args.vt = VT_ARRAY | VT_BSTR;
+
+    SAFEARRAYBOUND argsBound[1];
+    argsBound[0].lLbound = 0;
+    argsBound[0].cElements = count;
+    args.parray = SafeArrayCreate(VT_BSTR, 1, argsBound);
+    assert(args.parray);
+    for (int i = 0; i < count; i++)
+    {
+        idx[0] = i;
+        SafeArrayPutElement(args.parray, idx, SysAllocString(argv[i]));
+    }
+
+    SAFEARRAY* params = NULL;
+    SAFEARRAYBOUND paramsBound[1];
+    paramsBound[0].lLbound = 0;
+    paramsBound[0].cElements = 1;
+    params = SafeArrayCreate(VT_VARIANT, 1, paramsBound);
+
+    idx[0] = { 0 };
+    SafeArrayPutElement(params, idx, &args);
+
 
     // Create CLR Interface
     hr = CLRCreateInstance(
@@ -212,13 +246,10 @@ extern "C" int run_assembly(unsigned char* f_bytes, size_t f_size) {
     }
 
     // Invoke Entrypoint function
-    VARIANT v1, v2;
-    v1.vt = VT_NULL;
-    v1.plVal = NULL;
     PRINT("i> Invoking Entrypoint\n");
     PRINT("==== Entering Managed Code Land ====\n");
 
-    hr = methodInfo->Invoke_3(v1, NULL, &v2);
+    hr = methodInfo->Invoke_3(obj, params, &retval);
     if (hr != S_OK) {
         _res = -10;
         EPRINT("!> Invoke_3() Failed (0x%x)", hr);
@@ -227,6 +258,9 @@ extern "C" int run_assembly(unsigned char* f_bytes, size_t f_size) {
 
     // Clean Up
 cleanup:
+    VariantClear(&obj);
+    VariantClear(&retval);
+    VariantClear(&args);
     PRINT("i> Cleaning Up!");
 
     if (methodInfo != nullptr) {
@@ -283,7 +317,7 @@ int main(int argc, char** argv) {
     PRINT("==== Run .NET in-memory ====");
 
     // Check arguments
-    if (argc != 2) {
+    if (argc == 1) {
         EPRINT("!> Invalid Arguments");
         EPRINT("!> Usage: %s <ASSEMBLY PATH>", argv[0]);
         return -1;
@@ -301,13 +335,16 @@ int main(int argc, char** argv) {
 
     PRINT("i> Read %" PRId64 " bytes", _msize(f_bytes));
 
-    int res = run_assembly(f_bytes, _msize(f_bytes));
+    int nArgs;
+    wchar_t* hi = L"hi there";
+    LPWSTR * arr = CommandLineToArgvW(GetCommandLineW(), &nArgs);
+
+    int res = run_assembly(f_bytes, _msize(f_bytes), arr , nArgs);
     if (res != 0) {
         EPRINT("!> Failed to run Assembly");
         free(f_bytes);
         return -2;
     }
-
 
     free(f_bytes);
     return 0;
