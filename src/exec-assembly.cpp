@@ -115,7 +115,7 @@ extern "C" int run_assembly(unsigned char* f_bytes, size_t f_size, wchar_t * arg
     argsBound[0].lLbound = 0;
     argsBound[0].cElements = count;
     args.parray = SafeArrayCreate(VT_BSTR, 1, argsBound);
-    assert(args.parray);
+    //assert(args.parray);
     for (int i = 0; i < count; i++)
     {
         idx[0] = i;
@@ -139,7 +139,7 @@ extern "C" int run_assembly(unsigned char* f_bytes, size_t f_size, wchar_t * arg
         (LPVOID*)&metahost);       // COM interface for CLR
 
     if (hr != S_OK) {
-        EPRINT("!> CLRCreateInstance() Failed 0x%x", GetLastError());
+        EPRINT("!> CLRCreateInstance() Failed 0x%x", hr);
         return -1;
     }
 
@@ -147,7 +147,7 @@ extern "C" int run_assembly(unsigned char* f_bytes, size_t f_size, wchar_t * arg
     hr = metahost->EnumerateInstalledRuntimes(&runtime);
     if (hr != S_OK) {
         _res = -2;
-        EPRINT("!> Failed to Enumerate Installed Runtimes (0x%x)", GetLastError());
+        EPRINT("!> Failed to Enumerate Installed Runtimes (0x%x)", hr);
         goto cleanup;
     }
 
@@ -155,7 +155,7 @@ extern "C" int run_assembly(unsigned char* f_bytes, size_t f_size, wchar_t * arg
     frameworkName = (LPWSTR)LocalAlloc(LPTR, 2048 * 2);
     if (frameworkName == NULL) {
         _res = -3;
-        EPRINT("!> LocalAlloc Failed (0x%x)", GetLastError());
+        EPRINT("!> LocalAlloc Failed (0x%x)", hr);
         goto cleanup;
     }
 
@@ -178,7 +178,7 @@ extern "C" int run_assembly(unsigned char* f_bytes, size_t f_size, wchar_t * arg
 
     if (hr != S_OK || !bLoadable) {
         _res = -4;
-        EPRINT("!> Runtime is not Loadable!");
+        EPRINT("!> Runtime is not Loadable! (0x%x)", hr);
         goto cleanup;
     }
     PRINT("i> Runtime is Loadable!");
@@ -191,7 +191,7 @@ extern "C" int run_assembly(unsigned char* f_bytes, size_t f_size, wchar_t * arg
 
     if (hr != S_OK) {
         _res = -5;
-        EPRINT("i> GetInterface(CLSID_CLRRuntimeHost) failed");
+        EPRINT("i> GetInterface(CLSID_CLRRuntimeHost) failed (0x%x)", hr);
         goto cleanup;
     }
 
@@ -203,14 +203,14 @@ extern "C" int run_assembly(unsigned char* f_bytes, size_t f_size, wchar_t * arg
     hr = runtimeHost->GetDefaultDomain(&defaultRuntime);
     if (hr != S_OK) {
         _res = -6;
-        EPRINT("i> Failed to get Default AppDomain");
+        EPRINT("i> Failed to get Default AppDomain (0x%x)", hr);
         goto cleanup;
     }
 
     hr = defaultRuntime->QueryInterface(IID_PPV_ARGS(&appDomain));
     if (hr != S_OK) {
         _res = -7;
-        EPRINT("i> Failed to get Query Interface for Default AppDomain");
+        EPRINT("i> Failed to get Query Interface for Default AppDomain (0x%x)", hr);
         goto cleanup;
     }
 
@@ -221,7 +221,7 @@ extern "C" int run_assembly(unsigned char* f_bytes, size_t f_size, wchar_t * arg
     b_payload = SafeArrayCreate(VT_UI1, 1, &bnd_payload);
     if (b_payload == NULL) {
         _res = -8;
-        EPRINT("i> SafeArrayCreate() failed (0x%x)", GetLastError());
+        EPRINT("i> SafeArrayCreate() failed (0x%x)", hr);
         goto cleanup;
     }
 
@@ -233,7 +233,7 @@ extern "C" int run_assembly(unsigned char* f_bytes, size_t f_size, wchar_t * arg
     hr = appDomain->Load_3(b_payload, &dotnetAssembly);
     if (hr != S_OK) {
         _res = -8;
-        EPRINT("i> Failed to Load Assembly");
+        EPRINT("i> Failed to Load Assembly (0x%x)", hr);
         goto cleanup;
     }
 
@@ -241,7 +241,7 @@ extern "C" int run_assembly(unsigned char* f_bytes, size_t f_size, wchar_t * arg
     hr = dotnetAssembly->get_EntryPoint(&methodInfo);
     if (hr != S_OK) {
         _res = -9;
-        EPRINT("i> Failed to get EntryPoint");
+        EPRINT("i> Failed to get EntryPoint (0x%x)", hr);
         goto cleanup;
     }
 
@@ -336,8 +336,8 @@ int main(int argc, char** argv) {
     PRINT("i> Read %" PRId64 " bytes", _msize(f_bytes));
 
     int nArgs;
-    wchar_t* hi = L"hi there";
-    LPWSTR * arr = CommandLineToArgvW(GetCommandLineW(), &nArgs);
+    wchar_t* hi = L"LastShutDown";
+    LPWSTR * arr = CommandLineToArgvW(hi, &nArgs);
 
     int res = run_assembly(f_bytes, _msize(f_bytes), arr , nArgs);
     if (res != 0) {
